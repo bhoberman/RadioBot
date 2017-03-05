@@ -1,5 +1,4 @@
 var fs = require('fs');
-var ytdl = require('ytdl-core');
 var mumble = require('mumble');
 var sql = require('sqlite3');
 var sys = require('sys');
@@ -7,17 +6,23 @@ var exec = require('child_process').exec;
 var wav = require('wav');
 var lame = require('lame');
 var ffmpeg = require('fluent-ffmpeg');
-var Speaker = require('speaker');
 
-
-var options = {
-    key: fs.readFileSync('key.pem'),
-    cert: fs.readFileSync('crt.pem')
+if (process.argv.length != 5) {
+    console.log("Usage: node bot.js serverURL channelName userName");
+    process.exit(1);
 }
 
+var properties = {
+    keyOptions: {
+        key: fs.readFileSync('key.pem'),
+        cert: fs.readFileSync('crt.pem')
+    },
+    serverURL: process.argv[2],
+    channelName: process.argv[3],
+    userName: process.argv[4]
+}
 
-
-console.log( 'Connecting' );
+console.log('Connecting to mumble...');
 
 var volume = 0.25;
 var currentStream;
@@ -25,48 +30,34 @@ var currentStream;
 var playing = false;
 var currentlyStreaming = false;
 
- mumble.connect('mumble://benhen.zzzz.io', options, function (error, connection) {
+//argv[0] is node, argv[1] is the filename
+ mumble.connect(properties.serverURL, properties.keyOptions, function (error, connection) {
      if(error) { throw new Error(error); }
 
-     console.log('Connected to mumble');
-
+     console.log('Successfully connected to mumble...');
      connection.authenticate('radiobot');
-
      connection.on('initialized', function() {
          onInit(connection);
      });
-     connection.on('message', function(message, actor) {
+     connection.on('message', function(message, actor) {//Set up callback for messages
          onMessage(connection, message, actor);
-
      });
  });
 
 function onInit (connection) {
-    console.log('Connection initialized');
-    // Connection is authenticated and usable.
+    console.log('Connection initialized...');
 
 
-    //Connect to Elliptical Madness if it exists
-    //I added timeouts to account for connection delays
-    //There is probably a better way, but whatever
+    //Attempt to connect to specified channel, 
     setTimeout(function() {
-        //look for channel
-        var channel = connection.channelByName("Elliptical Madness");
+        var channel = connection.channelByName(properties.channelName);
         if (channel) {
             console.log("Autoconnect channel found.");
             channel.join();
-            setTimeout(function() {
-                sendMessage(connection, "Autoconnected. Hi!");
-            }, 100);
         } else {
-            console.log("Autoconnected channel not found");
+            console.log("Unable to join channel \"" + properties.channelName + ".\"");
         }
     }, 100);
-
-
-    // downloadVideo("The Saga Begins", "Weird Al Yankovic", "NA", "https://www.youtube.com/watch?v=hEcjgJSqSRU", function() {
-    //     playSound(connection, "The Saga Begins - Weird Al Yankovic on NA.mp3");
-    // });
 };
 
 function onMessage(connection, message, actor) {
@@ -179,20 +170,21 @@ var oneWordCommands = [
     ['putitdown', '┬─┬ノ( º _ ºノ) chill out bro']
 ];
 
-var commands = [{
-    identifier: 'doge',
-    minLength: 0, //how much additional information you need
-    action: function(connection) {
-        var words = ['amaze', 'wow', 'such mumble', 'so bot', 'such auto'];
-        sendMessage(connection, words[Math.floor(Math.random()*words.length)]);
-    }
-}, {
-    identifier: 'curse',
-    minLength: 1, //how much additional information you need
-    action: function(connection, keyString) {
-        sendMessage(connection, 'Screw you, ' + keyString + '!');
-    }
-}, {
+var commands = [//{
+//     identifier: 'doge',
+//     minLength: 0, //how much additional information you need
+//     action: function(connection) {
+//         var words = ['amaze', 'wow', 'such mumble', 'so bot', 'such auto'];
+//         sendMessage(connection, words[Math.floor(Math.random()*words.length)]);
+//     }
+// }, {
+//     identifier: 'curse',
+//     minLength: 1, //how much additional information you need
+//     action: function(connection, keyString) {
+//         sendMessage(connection, 'Screw you, ' + keyString + '!');
+//     }
+// }, 
+{
     identifier: 'help',
     minLength: 1, //how much additional information you need
     action: function(connection, keyString, keyArray, actor) {
@@ -255,20 +247,21 @@ var commands = [{
         sendMessage(connection, "Thanks for your request, " + actor.name, actor);
         sendMessage(connection, keyString);
     }
-}, {
-    identifier: 'scream',
-    minLength: 0, //how much additional information you need
-    action: function(connection, keyString, keyArray) {
+//, {
+    // identifier: 'scream',
+    // minLength: 0, //how much additional information you need
+    // action: function(connection, keyString, keyArray) {
 
-        playSound(connection, 'scream.wav');
-    }
-}, {
-    identifier: 'blackyeah',
-    minLength: 0, //how much additional information you need
-    action: function(connection, keyString, keyArray) {
-        playSound(connection, 'blackYeah.wav');
-    }
-}, {
+    //     playSound(connection, 'scream.wav');
+    // }
+//}, 
+// {
+//     identifier: 'blackyeah',
+//     minLength: 0, //how much additional information you need
+//     action: function(connection, keyString, keyArray) {
+//         playSound(connection, 'blackYeah.wav');
+//     }
+},{
     identifier: 'volume',
     minLength: 1,
     action: function(connection, keyString, keyArray) {
