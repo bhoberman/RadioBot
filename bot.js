@@ -31,25 +31,27 @@ var playing = false;
 var currentlyStreaming = false;
 
 //argv[0] is node, argv[1] is the filename
- mumble.connect(properties.serverURL, properties.keyOptions, function (error, connection) {
-     if(error) { throw new Error(error); }
+mumble.connect(properties.serverURL, properties.keyOptions, function (error, connection) {
+    if (error) {
+        throw new Error(error);
+    }
 
-     console.log('Successfully connected to mumble...');
-     connection.authenticate('radiobot');
-     connection.on('initialized', function() {
-         onInit(connection);
-     });
-     connection.on('message', function(message, actor) {//Set up callback for messages
-         onMessage(connection, message, actor);
-     });
- });
+    console.log('Successfully connected to mumble...');
+    connection.authenticate('radiobot');
+    connection.on('initialized', function () {
+        onInit(connection);
+    });
+    connection.on('message', function (message, actor) { //Set up callback for messages
+        onMessage(connection, message, actor);
+    });
+});
 
-function onInit (connection) {
+function onInit(connection) {
     console.log('Connection initialized...');
 
 
-    //Attempt to connect to specified channel, 
-    setTimeout(function() {
+    //Attempt to connect to specified channel with timeout for loading
+    setTimeout(function () {
         var channel = connection.channelByName(properties.channelName);
         if (channel) {
             console.log("Autoconnect channel found.");
@@ -61,50 +63,31 @@ function onInit (connection) {
 };
 
 function onMessage(connection, message, actor) {
-    if (actor.name === 'radiobot') {
-        //don't respond to yourself
+    //Don't respond to yourself
+    if (actor.name === properties.userName) {
         return;
     }
 
     //Ignore message if it doesn't start with "!"
-    if (message.indexOf("!") !== 0)
+    if (message.indexOf("!") !== 0) {
         return;
+    }
 
-    //Take away all html elements - from this:
+    //Take away all html elements (mumble supports html for formatting) - from this:
     //http://stackoverflow.com/questions/17164335/how-to-remove-only-html-tags-in-a-string-using-javascript
     var messageText = message.replace(/<\/?(a|p|i|b|br)\b[^<>]*>/g, '');
-    messageArray = messageText.split(' ');
-    //for (var i = 0; i < messageArray.length; i++) {
-//         //convert to lower case to make easier to parse
-//         messageArray[i] = messageArray[i].toLowerCase();
-//     };
-
-    //ignore message if it doesn't meet certain criteria
-    if (!messageArray || messageArray.length === 0
-        || messageArray[0].length === 1 || messageArray[0].substring(0, 1) !== '!') return;
-
-    //first word is the keyword (after the '!')
-    var keyWord = messageArray[0].substring(1);
-    if (messageArray.length > 0) {
-        //take away command from beginning to make easier to parse
-        messageText = messageText.substring(messageArray[0].length+1);
+    var cutPos = messageText.indexOf(' ');
+    if (cutPos === -1) {
+        cutPos = messageText.length;
     }
-    messageArray.shift(); //remove first element (e.g. '!hi')
+    var command = messageText.slice(1, cutPos);
+    var argument = messageText.slice(cutPos + 1);
 
-    performCommand(connection, keyWord, messageText, messageArray, actor)
+    performCommand(connection, command, argument, actor);
 
 };
 
 function playSound(connection, sound) {
-    // scream.pipe(connection.inputStream());
-
-    // scream = fs.readFileSync(sound);
-    //scream = fs.createReadStream(sound);
-    //scream.on('end', function() {
-    //    scream.unpipe();
-    //});
-    //scream.pipe(connection.inputStream());
-    //connection.inputStream();
     if (playing) {
         sendMessage(connection, "NO. Already playing a noise.");
         return;
@@ -116,11 +99,16 @@ function playSound(connection, sound) {
     decoder.on('format', onFormat);
     input.pipe(decoder);
     console.log("Playing " + filename);
+
     function onFormat(format) {
         console.log("MP3 format: %j", format);
         playing = decoder;
         currentlyStreaming = true;
-        decoder.pipe(connection.inputStream({sampleRate: 44100, channels: 2, gain:volume}), function() {
+        decoder.pipe(connection.inputStream({
+            sampleRate: 44100,
+            channels: 2,
+            gain: volume
+        }), function () {
             playing = false;
             currentlyStreaming = false;
         });
@@ -142,15 +130,19 @@ function stopPlaying(connection) {
 }
 
 function resumePlaying(connection) {
-    playing.pipe(connection.inputStream({sampleRate: 44100, channels: 2, gain:volume}, function() {
-            playing = false;
-            currentlyStreaming = false;
-        }));
+    playing.pipe(connection.inputStream({
+        sampleRate: 44100,
+        channels: 2,
+        gain: volume
+    }, function () {
+        playing = false;
+        currentlyStreaming = false;
+    }));
     currentlyStreaming = true;
 }
 
 function sendMessage(connection, message, actor) {
-    //if you include a user, send it to him
+    //Send private message to actor, else channel
     if (actor) {
         actor.sendMessage(message);
     } else {
@@ -160,141 +152,77 @@ function sendMessage(connection, message, actor) {
     }
 }
 
-var oneWordCommands = [
-    ['hi', 'Hello!'],
-    ['lenny', '( ͡° ͜ʖ ͡°)'],
-    ['dong', 'ヽ༼ຈل͜ຈ༽ﾉ raise your dongers ヽ༼ຈل͜ຈ༽ﾉ'],
-    ['hecomes', 'Ḫ̵͇Ẹ ̢̥̰̥̻̘̙̠C̺̙̠͠O̠̗M̺̭E̵S͖͓͜'],
-    ['meh', '¯\\_(ツ)_/¯'],
-    ['flipthetable', '(╯°□°）╯︵ ┻━┻'],
-    ['putitdown', '┬─┬ノ( º _ ºノ) chill out bro']
-];
-
-var commands = [//{
-//     identifier: 'doge',
-//     minLength: 0, //how much additional information you need
-//     action: function(connection) {
-//         var words = ['amaze', 'wow', 'such mumble', 'so bot', 'such auto'];
-//         sendMessage(connection, words[Math.floor(Math.random()*words.length)]);
-//     }
-// }, {
-//     identifier: 'curse',
-//     minLength: 1, //how much additional information you need
-//     action: function(connection, keyString) {
-//         sendMessage(connection, 'Screw you, ' + keyString + '!');
-//     }
-// }, 
-{
+var commands = [{
     identifier: 'help',
-    minLength: 1, //how much additional information you need
-    action: function(connection, keyString, keyArray, actor) {
-        sendMessage(connection, 'Here is a list of all commands:', actor);
-
-        var text = '';
-        for (var i = 0; i < commands.length; i++) {
-            //don't want anyone else to know
-            if (commands[i].identifier === 'scream'
-                || commands[i].identifier === 'blackYeah') continue;
-
-            text += commands[i].identifier + ', ';
+    usagestring: '!help [optional: command]', 
+    action: function (connection, argument, actor) {
+        if (argument != '') {
+            for (var i = 0; i < commands.length; i++) {
+                if (commands[i].identifier == argument) {
+                    sendMessage(connection, commands[i].usagestring);
+                    return;
+                }
+            }
+            sendMessage(connection, 'Command "' + argument + '" not found.');
         }
-
-        for (var i = 0; i < oneWordCommands.length; i++) {
-            text += oneWordCommands[i][0] + ', ';
-        };
-
+        var text = 'Here is a list of all commands:';
+        for (var i = 0; i < commands.length; i++) {
+            text += "<br>";
+            text += commands[i].usagestring;
+        }
         sendMessage(connection, text);
     }
 }, {
     identifier: 'move',
-    minLength: 1, //how much additional information you need
-    action: function(connection, keyString) {
-        //get rest of command without '!move '
-        var newChannel = keyString;
-        if (newChannel === 'root') {
+    usagestring: '!move newChannelName',
+    action: function (connection, argument, actor) {
+        if (argument === 'root') {
             connection.rootChannel.join();
             console.log("Moved to Channel: root");
         } else {
-            var channel = connection.channelByName(newChannel);
+            var channel = connection.channelByName(argument);
             if (channel) {
                 channel.join();
-                console.log("Moved to Channel: " + newChannel);
+                console.log("Moved to channel \"" + argument + "\"");
             } else {
-                sendMessage(connection, 'Channel ' + newChannel + ' not found');
+                sendMessage(connection, 'Channel "' + argument + '" not found');
             }
         }
     }
 }, {
-    identifier: 'printuserlist',
-    minLength: 0, //how much additional information you need
-    action: function(connection) {
-        sendMessage(connection, "User List Requested");
-
-        var users = connection.users();
-        var text = "";
-
-        for (var i = 0; i < users.length; i++) {
-            text += users[i].name + ', ';
-        }
-
-        sendMessage(connection, text);
-    }
-}, {
-    identifier: 'msg',
-    minLength: 1, //how much additional information you need
-    action: function(connection, keyString, keyArray, actor) {
-        console.log("sending message to " + actor.name);
-        sendMessage(connection, "Thanks for your request, " + actor.name, actor);
-        sendMessage(connection, keyString);
-    }
-//, {
-    // identifier: 'scream',
-    // minLength: 0, //how much additional information you need
-    // action: function(connection, keyString, keyArray) {
-
-    //     playSound(connection, 'scream.wav');
-    // }
-//}, 
-// {
-//     identifier: 'blackyeah',
-//     minLength: 0, //how much additional information you need
-//     action: function(connection, keyString, keyArray) {
-//         playSound(connection, 'blackYeah.wav');
-//     }
-},{
     identifier: 'volume',
-    minLength: 1,
-    action: function(connection, keyString, keyArray) {
+    usagestring: "!volume newVolume (float default 0.25)",
+    action: function (connection, argument, actor) {
         if (playing !== false && currentlyStreaming === true) { //something is playing
             pausePlaying(connection);
-            volume = parseFloat(keyArray[0]);
+            volume = parseFloat(argument);
             resumePlaying(connection);
         } else {
-            volume = parseFloat(keyArray[0]);
+            volume = parseFloat(argument);
         }
     }
 }, {
     identifier: 'add',
-    minLength: 4,
-    action: function(connection, keyString, keyArray) {
-        console.log(keyArray);
-        var name = keyArray[0].replace(/_/g, ' ');
-        var artist = keyArray[1].replace(/_/g, ' ');
-        var album = keyArray[2].replace(/_/g, ' ');
+    usagestring: "!add songname;artistname;albumname;youtubeurl",
+    action: function (connection, argument, actor) {
+        var keyArray = argument.split(";");
+        var name = keyArray[0];
+        var artist = keyArray[1];
+        var album = keyArray[2];
         var url = keyArray[3];
-        downloadVideo(name, artist, album, url, function() {
+        downloadVideo(name, artist, album, url, function () {
             sendMessage(connection, "Added " + name);
         });
     }
 }, {
     identifier: 'list',
-    minLength: 0,
-    action: function(connection, keyString, keyArray) {
+    usagestring: "!list",
+    action: function (connection, argument, actor) {
 
-        getDatabaseEntries(function(rows) {
+        getDatabaseEntries(function (rows) {
             var message = "Here's what's in the library:<br>";
             for (var i = 0; i < rows.length; ++i) {
-                var thisLine = String(i+1) + ". " + rows[i].title + " by " + rows[i].artist + " in " + rows[i].album + (i == (rows.length - 1) ? "" : "<br>");
+                var thisLine = String(i + 1) + ". " + rows[i].title + " by " + rows[i].artist + " in " + rows[i].album + (i == (rows.length - 1) ? "" : "<br>");
                 message += thisLine;
             }
             sendMessage(connection, message);
@@ -302,69 +230,57 @@ var commands = [//{
     }
 }, {
     identifier: 'play',
-    minLength: 1,
-    action: function(connection, keyString, keyArray) {
-        var index = parseInt(keyArray[0]) - 1;
-        getFilename(index, function(file) {
-            console.log("Playing " + file);
-            playSound(connection, file);
-        })
+    usagestring: "!play songID (obtained from !list)",
+    action: function (connection, argument, actor) {
+        var index = parseInt(argument);
+        getFilename(index, function (file) {
+            if (file) {
+                console.log("Playing " + file);
+                playSound(connection, file);
+            } else {
+                sendMessage(connection, "Error playing song #" + index);
+            }
+
+        });
     }
 }, {
     identifier: 'pause',
-    minLength: 0,
-    action: function(connection, keyString, keyArray) {
-        pausePlaying(connection)
+    usagestring: "!pause",
+    action: function (connection, argument, actor) {
+        pausePlaying(connection);
     }
 }, {
     identifier: 'resume',
-    minLength: 0,
-    action: function(connection, keyString, keyArray) {
+    usagestring: "!resume",
+    action: function (connection, argument, actor) {
         resumePlaying(connection);
     }
 }, {
     identifier: 'stop',
-    minLength: 0,
-    action: function(connection, keyString, keyArray) {
+    usagestring: "!stop",
+    action: function (connection, argument, actor) {
         stopPlaying(connection);
     }
 }];
 
-var performCommand = function(connection, keyWord, commandText, commandArray, actor) {
+function performCommand(connection, command, argument, actor) {
 
-    var foundCommand = false;
-    for (var i = 0; i < oneWordCommands.length; i++) {
-        if (oneWordCommands[i][0] === keyWord) {
-            console.log('Received command: ' + oneWordCommands[i][0]);
-            sendMessage(connection, oneWordCommands[i][1]);
+    //TODO: add ban list
 
-            foundCommand = true;
-            break;
-        }
-    }
-    if (!foundCommand) {
-        for (var i = 0; i < commands.length; i++) {
-            var command = commands[i];
-            //TODO: array identifiers
-            //This looks for a command with a matching keyword
-            if (command.identifier === keyWord) {
-                console.log('Received command: ' + command.identifier);
-                //execture if found
-                command.action(connection, commandText, commandArray, actor);
-                foundCommand = true;
-                break;
-            }
+    for (var i = 0; i < commands.length; ++i) {
+        if (commands[i].identifier == command) {
+            commands[i].action(connection, argument, actor);
+            return;
         }
     }
 
-    if (!foundCommand) {
-        sendMessage(connection, 'Command not found');
-    }
+    sendMessage(connection, "Command not found");
+
 }
 
 function downloadVideo(name, artist, album, url, callback) {
     var fileString = name + " - " + artist + " on " + album + ".m4a";
-    child = exec("python3 downloader.py \"" + fileString + "\" " + url, function (error, stdout, stderr) {
+    child = exec("python downloader.py \"" + fileString + "\" " + url, function (error, stdout, stderr) {
         console.log("done downloading");
         console.log(stdout)
         console.log(error)
@@ -378,7 +294,7 @@ function downloadVideo(name, artist, album, url, callback) {
 function addToDatabase(name, artist, album, filepath) {
     var db = new sql.Database('library.db');
 
-    db.serialize(function() {
+    db.serialize(function () {
         db.run("CREATE TABLE IF NOT EXISTS songs (title TEXT, artist TEXT, album TEXT, file TEXT)");
 
         var stmt = db.prepare("INSERT INTO songs VALUES (?, ?, ?, ?)");
@@ -392,12 +308,12 @@ function addToDatabase(name, artist, album, filepath) {
 function getDatabaseEntries(callback) {
     var db = new sql.Database('library.db');
     var entries = [];
-    db.serialize(function() {
+    db.serialize(function () {
         db.run("CREATE TABLE IF NOT EXISTS songs (title TEXT, artist TEXT, album TEXT, file TEXT)");
 
-        db.each("SELECT * FROM songs", function(err, row) {
+        db.each("SELECT * FROM songs", function (err, row) {
             entries.push(row);
-        }, function() {
+        }, function () {
             ///Done
             callback(entries);
         });
@@ -407,8 +323,8 @@ function getDatabaseEntries(callback) {
 }
 
 function getFilename(index, callback) {
-    getDatabaseEntries(function(rows) {
-        var file = rows[index].file;
+    getDatabaseEntries(function (rows) {
+        var file = rows[index - 1].file;
         callback(file);
     });
 }

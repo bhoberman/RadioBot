@@ -2,8 +2,7 @@ import youtube_dl
 import sys
 
 
-#TODO: Add code to print out if there is an error or something
-class MyLogger(object):
+class Logger(object):
     def debug(self, msg):
         pass
 
@@ -14,7 +13,7 @@ class MyLogger(object):
         print(msg)
 
 
-def my_hook(d):
+def hook(d):
     if d['status'] == 'finished':
         print('Success')
 
@@ -25,15 +24,10 @@ ydl_opts = {
         'key': 'FFmpegExtractAudio',
         'preferredcodec': 'mp3',
     }],
-    'logger': MyLogger(),
-    'progress_hooks': [my_hook],
+    'logger': Logger(),
+    'progress_hooks': [hook],
     'outtmpl': sys.argv[1]
 }
 
-print("THIS IS THE ARGV")
-print(sys.argv)
-
 with youtube_dl.YoutubeDL(ydl_opts) as ydl:
     ydl.download(sys.argv[2:])
-
-print(sys.argv)
