@@ -324,6 +324,9 @@ function getDatabaseEntries(callback) {
 
 function getFilename(index, callback) {
     getDatabaseEntries(function (rows) {
+        if (index > rows.length || index < 0) {
+            return;
+        }
         var file = rows[index - 1].file;
         callback(file);
     });
