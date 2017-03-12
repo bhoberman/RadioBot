@@ -206,10 +206,18 @@ var commands = [{
     usagestring: "!add songname;artistname;albumname;youtubeurl",
     action: function (connection, argument, actor) {
         var keyArray = argument.split(";");
+        if (keyArray.length != 4) {
+            sendMessage(connection, "Correct usage:<br>" + "!add songname;artistname;albumname;youtubeurl");
+            return;
+        }
         var name = keyArray[0];
         var artist = keyArray[1];
         var album = keyArray[2];
         var url = keyArray[3];
+        if (!/https?:\/\/(www.)?youtube.com\/(.*)/g.test(url)) {
+            sendMessage(connection, "Please include a valid youtube URL");
+            return;
+        }
         downloadVideo(name, artist, album, url, function () {
             sendMessage(connection, "Added " + name);
         });
